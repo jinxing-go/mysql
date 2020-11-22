@@ -1,4 +1,4 @@
-module mysql
+module github.com/jinxing-go/mysql
 
 go 1.14
 
