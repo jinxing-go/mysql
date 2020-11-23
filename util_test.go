@@ -19,3 +19,28 @@ func TestGetEnv(t *testing.T) {
 	str = GetEnv("TEST_DB_USERNAME123", "")
 	assert.Equal(t, "", str)
 }
+
+func TestNewTestMySQL(t *testing.T) {
+	mySQL := NewTestMySQL(t, "testdata/example.sql")
+	_, err := mySQL.Exec("SHOW TABLES")
+	assert.NoError(t, err)
+}
+
+func TestNewTestMySQL_FixturesPanic(t *testing.T) {
+	assert.Panics(t, func() {
+		NewTestMySQL(t, "testdata/example.sql", "test.sql")
+	})
+}
+
+func TestNewTestMySQL_SchemaPanic(t *testing.T) {
+	assert.Panics(t, func() {
+		NewTestMySQL(t, "testdata/example123.sql")
+	})
+}
+
+func TestRunTestMySQL(t *testing.T) {
+	RunTestMySQL(t, "testdata/example.sql", func(mySQL *MySQl) {
+		_, err := mySQL.Exec("SHOW TABLES")
+		assert.NoError(t, err)
+	})
+}

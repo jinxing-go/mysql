@@ -35,8 +35,8 @@ func getDsn(name string) string {
 	) + "/" + name + "?charset=utf8&parseTime=True&loc=Asia%2FShanghai"
 }
 
-func NewTestDatabase(t *testing.T, schema string, fixtures ...string) *MySQl {
-	database := GetUniqueName("test")
+func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
+
 	mySQL := NewMySQL(&MySQLConfig{
 		Dsn:         getDsn(""),
 		Driver:      "mysql",
@@ -44,12 +44,11 @@ func NewTestDatabase(t *testing.T, schema string, fixtures ...string) *MySQl {
 		MaxLifetime: 30,
 	})
 
+	database := GetUniqueName("test")
 	name := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", database)
-	fmt.Println("- 🛠️ " + name)
-	_, err := mySQL.Exec(name)
-	if err != nil {
-		panic("Create database error: " + err.Error())
-	}
+	fmt.Println("- ✅ " + name)
+	mySQL.Exec(name)
+	mySQL.DB.Close()
 
 	mySQL = NewMySQL(&MySQLConfig{
 		Dsn:         getDsn(database),
@@ -58,8 +57,16 @@ func NewTestDatabase(t *testing.T, schema string, fixtures ...string) *MySQl {
 		MaxLifetime: 30,
 	})
 
+	t.Cleanup(func() {
+		mySQL.ShowSql = false
+		dropName := fmt.Sprintf("DROP DATABASE IF EXISTS %s", database)
+		fmt.Println("- ✅ " + dropName)
+		mySQL.Exec(dropName)
+		mySQL.DB.Close()
+	})
+
 	// 读取数据库表结构文件
-	fmt.Println("- ‍🚀 Import schema: " + schema)
+	fmt.Println("- ✅ Import schema: " + schema)
 	str, err := ioutil.ReadFile(schema)
 	if err != nil {
 		panic(err)
@@ -69,7 +76,7 @@ func NewTestDatabase(t *testing.T, schema string, fixtures ...string) *MySQl {
 
 	for _, filename := range fixtures {
 		if filename != "" {
-			fmt.Println("- ‍🚀 Load fixtures: " + filename)
+			fmt.Println("- ✅ Load fixtures: " + filename)
 			str, err = ioutil.ReadFile(filename)
 			if err != nil {
 				panic(err)
@@ -81,13 +88,11 @@ func NewTestDatabase(t *testing.T, schema string, fixtures ...string) *MySQl {
 		}
 	}
 
-	t.Cleanup(func() {
-		mySQL.ShowSql = false
-		dropName := fmt.Sprintf("DROP DATABASE IF EXISTS %s", database)
-		fmt.Println("- 🗑️ " + dropName)
-		mySQL.Exec(dropName)
-	})
-
 	mySQL.ShowSql = true
 	return mySQL
+}
+
+func RunTestMySQL(t *testing.T, schema string, run func(mySQL *MySQl), fixtures ...string) {
+	mySQL := NewTestMySQL(t, schema, fixtures...)
+	run(mySQL)
 }
