@@ -3,60 +3,13 @@ package mysql
 import (
 	"database/sql"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
-	"os"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func getDsn() string {
-	return fmt.Sprintf(
-		"%s:%s@tcp(%s:3306)",
-		os.Getenv("TEST_DB_USERNAME"),
-		os.Getenv("TEST_DB_PASSWORD"),
-		os.Getenv("TEST_DB_HOST"),
-	) + "/my-test?charset=utf8&parseTime=True&loc=Asia%2FShanghai"
-}
-
 func testRun(t *testing.T, filename string, f func(mySQL *MySQl)) {
-	fmt.Println(getDsn())
-	mySQL := NewMySQL(&MySQLConfig{
-		Dsn:         getDsn(),
-		Driver:      "mysql",
-		ShowSql:     true,
-		MaxLifetime: 30,
-	})
-
-	mySQL.ShowSql = false
-	// 读取数据库表结构文件
-	fmt.Println("===> 开始创建表结构")
-	str, err := ioutil.ReadFile("testdata/example.sql")
-	if err != nil {
-		panic(err)
-	}
-
-	mySQL.Exec(string(str))
-
-	if filename != "" {
-		fmt.Println("===> 开始导入表数据:" + filename)
-		str, err = ioutil.ReadFile(filename)
-		if err != nil {
-			panic(err)
-		}
-		data := strings.Split(string(str), ";\n")
-		for _, execSql := range data {
-			mySQL.Exec(strings.TrimRight(execSql, ";"))
-		}
-	}
-
-	t.Cleanup(func() {
-		mySQL.ShowSql = false
-		fmt.Println("===> 清除表结构和数据")
-		mySQL.Exec("DROP TABLE IF EXISTS `user`")
-	})
-
-	mySQL.ShowSql = true
+	mySQL := NewTestDatabase(t, "testdata/example.sql", filename)
 	f(mySQL)
 }
 
@@ -71,7 +24,7 @@ func TestNewMySQL(t *testing.T) {
 
 	t.Run("正常连接", func(t *testing.T) {
 		NewMySQL(&MySQLConfig{
-			Dsn:     getDsn(),
+			Dsn:     getDsn(""),
 			Driver:  "mysql",
 			ShowSql: true,
 		})
