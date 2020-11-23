@@ -26,6 +26,30 @@ func GetEnv(name, defaultValue string) string {
 	return defaultValue
 }
 
+func InStringSlice(strSlice []string, need string) bool {
+	if len(strSlice) == 0 {
+		return false
+	}
+
+	for _, v := range strSlice {
+		if v == need {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Studly user_id to UserId
+func Studly(key string) string {
+	// user_id to `user id`
+	s := strings.Replace(key, "_", " ", -1)
+	// `user id` to `User Id`
+	s = strings.Title(s)
+	// `User Id` to `UserId`
+	return strings.Replace(s, " ", "", -1)
+}
+
 func getDsn(name string) string {
 	return fmt.Sprintf(
 		"%s:%s@tcp(%s:3306)",

@@ -44,3 +44,75 @@ func TestRunTestMySQL(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestInStringSlice(t *testing.T) {
+	type args struct {
+		strSlice []string
+		need     string
+	}
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "测试正常-true",
+			args: args{strSlice: []string{"username", "age", "status", "created_at"}, need: "age"},
+			want: true,
+		},
+		{
+			name: "测试正常-false",
+			args: args{strSlice: []string{"username", "age", "status", "created_at"}, need: "age1"},
+			want: false,
+		},
+		{
+			name: "测试正常-false",
+			args: args{strSlice: []string{}, need: "age1"},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := InStringSlice(tt.args.strSlice, tt.args.need); got != tt.want {
+				t.Errorf("InStringSlice() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStudly(t *testing.T) {
+	tests := []struct {
+		name string
+		args string
+		want string
+	}{
+		{
+			name: "test",
+			args: "test",
+			want: "Test",
+		},
+		{
+			name: "test_name",
+			args: "test_name",
+			want: "TestName",
+		},
+		{
+			name: "test name",
+			args: "test name",
+			want: "TestName",
+		},
+		{
+			name: "TestName",
+			args: "testName",
+			want: "TestName",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Studly(tt.args); got != tt.want {
+				t.Errorf("toStudly() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

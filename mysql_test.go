@@ -31,50 +31,6 @@ func TestNewMySQL(t *testing.T) {
 	})
 }
 
-func TestMySQl_getPkValue(t *testing.T) {
-	mySQL := &MySQl{}
-	s := mySQL.getPkValue(&User{}, "UserId")
-	assert.Equal(t, int64(0), s)
-	assert.Equal(t, int64(1), mySQL.getPkValue(&User{UserId: 1}, "user_id"))
-}
-
-func TestMySQl_toStudly(t *testing.T) {
-	mySQL := &MySQl{}
-	tests := []struct {
-		name string
-		args string
-		want string
-	}{
-		{
-			name: "test",
-			args: "test",
-			want: "Test",
-		},
-		{
-			name: "test_name",
-			args: "test_name",
-			want: "TestName",
-		},
-		{
-			name: "test name",
-			args: "test name",
-			want: "TestName",
-		},
-		{
-			name: "TestName",
-			args: "testName",
-			want: "TestName",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := mySQL.toStudly(tt.args); got != tt.want {
-				t.Errorf("toStudly() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestMySQl_Find(t *testing.T) {
 	mySQL := NewTestMySQL(t, examplePathName, userPathName)
 	// 执行正常
@@ -199,41 +155,4 @@ func TestMySQl_toQueryWhere(t *testing.T) {
 	assert.Equal(t, 3, len(where))
 	assert.Equal(t, 3, len(args))
 	fmt.Println(where, args)
-}
-
-func TestMySQl_InStringSlice(t *testing.T) {
-	mySQL := &MySQl{}
-	type args struct {
-		strSlice []string
-		need     string
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "测试正常-true",
-			args: args{strSlice: []string{"username", "age", "status", "created_at"}, need: "age"},
-			want: true,
-		},
-		{
-			name: "测试正常-false",
-			args: args{strSlice: []string{"username", "age", "status", "created_at"}, need: "age1"},
-			want: false,
-		},
-		{
-			name: "测试正常-false",
-			args: args{strSlice: []string{}, need: "age1"},
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := mySQL.InStringSlice(tt.args.strSlice, tt.args.need); got != tt.want {
-				t.Errorf("InStringSlice() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }

@@ -43,17 +43,13 @@ type QueryParams struct {
 	Args  interface{} `json:"args"`
 	Error error       `json:"error"`
 	Start time.Time   `json:"start"`
+	End   time.Time   `json:"end"`
 }
 
 type Column struct {
 	Name   string      `json:"name"`
 	Value  interface{} `json:"value"`
 	IsZero bool        `json:"is_zero"`
-}
-
-type Model interface {
-	TableName() string
-	PK() string
 }
 
 func NewMySQL(configValue *MySQLConfig) *MySQl {
@@ -88,6 +84,7 @@ func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 			Args:  args,
 			Error: err,
 			Start: start,
+			End:   time.Now(),
 		})
 	}(time.Now())
 
@@ -107,7 +104,7 @@ func (m *MySQl) Delete(model Model, zeroColumns ...string) (int64, error) {
 func (m *MySQl) Update(model Model, zeroColumn ...string) (int64, error) {
 	pk := model.PK()
 	where, args := m.toQueryWhere(model, UpdateEventName, []string{pk}, zeroColumn)
-	args = append(args, m.getPkValue(model, pk))
+	args = append(args, GetPKValue(model))
 	return m.Exec(
 		fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = ?", model.TableName(), strings.Join(where, ", "), pk),
 		args...,
@@ -141,6 +138,7 @@ func (m *MySQl) Create(model Model) (err error) {
 			Args:  bindValue,
 			Error: err,
 			Start: start,
+			End:   time.Now(),
 		})
 	}(time.Now())
 
@@ -153,7 +151,7 @@ func (m *MySQl) Create(model Model) (err error) {
 	// 获取自增ID
 	id, err := result.LastInsertId()
 	// 赋值主键值
-	m.setPKValue(model, id)
+	SetPKValue(model, id)
 
 	return err
 }
@@ -165,6 +163,7 @@ func (m *MySQl) Exec(sql string, args ...interface{}) (i int64, err error) {
 			Args:  args,
 			Error: err,
 			Start: start,
+			End:   time.Now(),
 		})
 	}(time.Now())
 
@@ -176,20 +175,6 @@ func (m *MySQl) Exec(sql string, args ...interface{}) (i int64, err error) {
 	return result.RowsAffected()
 }
 
-// toStudly user_id to UserId
-func (m *MySQl) toStudly(key string) string {
-	// user_id to `user id`
-	s := strings.Replace(key, "_", " ", -1)
-	// `user id` to `User Id`
-	s = strings.Title(s)
-	// `User Id` to `UserId`
-	return strings.Replace(s, " ", "", -1)
-}
-
-func (m *MySQl) getPkValue(data interface{}, key string) interface{} {
-	return reflect.ValueOf(data).Elem().FieldByName(m.toStudly(key)).Interface()
-}
-
 func (m *MySQl) logger(query *QueryParams) {
 	if m.ShowSql {
 		fmt.Println(DateTime())
@@ -199,7 +184,7 @@ func (m *MySQl) logger(query *QueryParams) {
 			fmt.Printf("\t\tError: %#v\n", query.Error)
 		}
 
-		fmt.Printf("\t\tTime:  %.4fs\n", time.Now().Sub(query.Start).Seconds())
+		fmt.Printf("\t\tTime:  %.4fs\n", query.End.Sub(query.Start).Seconds())
 	}
 }
 
@@ -213,12 +198,12 @@ func (m *MySQl) AnalyticStructure(data interface{}, eventName string) []*Column 
 		fieldValue := v.Field(i)
 		switch eventName {
 		case CreateEventName:
-			if m.InStringSlice(CreatedAutoColumns, column.Name) {
+			if InStringSlice(CreatedAutoColumns, column.Name) {
 				m.setTimeValue(column, fieldValue)
 				isNotHandler = false
 			}
 		case UpdateEventName:
-			if m.InStringSlice(UpdatedAutoColumns, column.Name) {
+			if InStringSlice(UpdatedAutoColumns, column.Name) {
 				m.setTimeValue(column, fieldValue)
 				isNotHandler = false
 			}
@@ -269,20 +254,6 @@ func (m *MySQl) toMap(str []string) map[string]bool {
 	return data
 }
 
-func (m *MySQl) InStringSlice(strSlice []string, need string) bool {
-	if len(strSlice) == 0 {
-		return false
-	}
-
-	for _, v := range strSlice {
-		if v == need {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (m *MySQl) setTimeValue(column *Column, value reflect.Value) {
 	timeNow := time.Now()
 	column.Value = timeNow
@@ -294,13 +265,5 @@ func (m *MySQl) setTimeValue(column *Column, value reflect.Value) {
 		case Time:
 			value.Set(reflect.ValueOf(Time(timeNow)))
 		}
-	}
-}
-
-func (m *MySQl) setPKValue(model Model, id int64) {
-	idField := m.toStudly(model.PK())
-	value := reflect.ValueOf(model).Elem().FieldByName(idField)
-	if value.IsZero() && value.CanSet() {
-		value.SetInt(id)
 	}
 }
