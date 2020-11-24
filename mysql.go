@@ -12,6 +12,7 @@ import (
 type MySQl struct {
 	DB      *sqlx.DB
 	ShowSql bool
+	Logger  Logger
 }
 
 type MySQLConfig struct {
@@ -48,6 +49,7 @@ func NewMySQL(configValue *MySQLConfig) *MySQl {
 	return &MySQl{
 		DB:      db,
 		ShowSql: configValue.ShowSql,
+		Logger:  &DefaultLogger{},
 	}
 }
 
@@ -157,19 +159,6 @@ func (m *MySQl) Exec(sql string, args ...interface{}) (i int64, err error) {
 	return result.RowsAffected()
 }
 
-func (m *MySQl) logger(query *QueryParams) {
-	if m.ShowSql {
-		fmt.Println(DateTime())
-		fmt.Printf("\t\tQuery: %s\n", query.Query)
-		fmt.Printf("\t\tArgs:  %#v\n", query.Args)
-		if query.Error != nil {
-			fmt.Printf("\t\tError: %#v\n", query.Error)
-		}
-
-		fmt.Printf("\t\tTime:  %.4fs\n", query.End.Sub(query.Start).Seconds())
-	}
-}
-
 func (m *MySQl) toQueryWhere(data Model, exceptColumn, joinColumn []string) ([]string, []interface{}) {
 	where := make([]string, 0)
 	args := make([]interface{}, 0)
@@ -193,4 +182,10 @@ func (m *MySQl) toQueryWhere(data Model, exceptColumn, joinColumn []string) ([]s
 	}
 
 	return where, args
+}
+
+func (m *MySQl) logger(params *QueryParams) {
+	if m.ShowSql && m.Logger != nil {
+		m.Logger.Logger(params)
+	}
 }
