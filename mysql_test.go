@@ -108,19 +108,13 @@ func TestMySQl_Exec(t *testing.T) {
 	assert.Equal(t, int64(0), row3)
 }
 
-func TestMySQl_AnalyticStructure(t *testing.T) {
-	mySQL := &MySQl{}
-	user := mySQL.AnalyticStructure(&User{UserId: 1}, "")
-	assert.Equal(t, 6, len(user))
-}
-
 func TestMySQl_toQueryWhere(t *testing.T) {
 	db := &MySQl{}
 	// 没有排除、没有添加
 	where, args := db.toQueryWhere(&User{
 		UserId:   1,
 		Username: "jinxing.liu",
-	}, "", nil, nil)
+	}, nil, nil)
 
 	assert.Equal(t, 2, len(where))
 	assert.Equal(t, 2, len(args))
@@ -130,7 +124,7 @@ func TestMySQl_toQueryWhere(t *testing.T) {
 	where, args = db.toQueryWhere(&User{
 		UserId:   1,
 		Username: "jinxing.liu",
-	}, "", []string{"user_id"}, nil)
+	}, []string{"user_id"}, nil)
 
 	assert.Equal(t, 1, len(where))
 	assert.Equal(t, 1, len(args))
@@ -140,7 +134,7 @@ func TestMySQl_toQueryWhere(t *testing.T) {
 	where, args = db.toQueryWhere(&User{
 		UserId:   1,
 		Username: "jinxing.liu",
-	}, "", nil, []string{"password", "status"})
+	}, nil, []string{"password", "status"})
 
 	assert.Equal(t, 4, len(where))
 	assert.Equal(t, 4, len(args))
@@ -150,7 +144,7 @@ func TestMySQl_toQueryWhere(t *testing.T) {
 	where, args = db.toQueryWhere(&User{
 		UserId:   1,
 		Username: "jinxing.liu",
-	}, "", []string{"user_id"}, []string{"password", "status"})
+	}, []string{"user_id"}, []string{"password", "status"})
 
 	assert.Equal(t, 3, len(where))
 	assert.Equal(t, 3, len(args))

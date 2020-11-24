@@ -116,3 +116,10 @@ func TestStudly(t *testing.T) {
 		})
 	}
 }
+
+func TestSliceToMap(t *testing.T) {
+	str := []string{"username", "age"}
+	m := SliceToMap(str)
+	assert.Equal(t, true, m["username"])
+	assert.Equal(t, true, m["age"])
+}

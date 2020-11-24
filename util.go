@@ -26,6 +26,7 @@ func GetEnv(name, defaultValue string) string {
 	return defaultValue
 }
 
+// InStringSlice 验证字符串是否在slice里面
 func InStringSlice(strSlice []string, need string) bool {
 	if len(strSlice) == 0 {
 		return false
@@ -48,6 +49,16 @@ func Studly(key string) string {
 	s = strings.Title(s)
 	// `User Id` to `UserId`
 	return strings.Replace(s, " ", "", -1)
+}
+
+// SliceToMap 将slice转为map
+func SliceToMap(str []string) map[string]bool {
+	data := make(map[string]bool)
+	for _, key := range str {
+		data[key] = true
+	}
+
+	return data
 }
 
 func getDsn(name string) string {

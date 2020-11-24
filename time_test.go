@@ -34,3 +34,11 @@ func TestTime_String(t *testing.T) {
 	v := Time(time.Now())
 	assert.Equal(t, time.Now().Format(DateTimeLayout), v.String())
 }
+
+func TestTime_Value(t *testing.T) {
+	var v Time
+	timeDriver, err := v.Value()
+	fmt.Printf("%s\n", v.String())
+	assert.Equal(t, nil, timeDriver)
+	assert.NoError(t, err)
+}

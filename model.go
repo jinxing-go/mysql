@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	CreatedAt = "created_at"
+	UpdatedAt = "updated_at"
+)
+
 type Model interface {
 	TableName() string
 	PK() string
@@ -48,16 +53,8 @@ func SetCreateAutoTimestamps(model Model) bool {
 	createdAt := GetCreatedAtColumnName(model)
 	updatedAt := GetUpdatedAtColumnName(model)
 	timeValue := GetTimestampsValue(model)
-	createdValueOf := valueOf.FieldByName(Studly(createdAt))
-	if createdValueOf.IsZero() && createdValueOf.CanSet() {
-		createdValueOf.Set(reflect.ValueOf(timeValue))
-	}
-
-	updatedValueOf := valueOf.FieldByName(Studly(updatedAt))
-	if updatedValueOf.IsZero() && updatedValueOf.CanSet() {
-		updatedValueOf.Set(reflect.ValueOf(timeValue))
-	}
-
+	SetStructNameValue(valueOf, createdAt, timeValue)
+	SetStructNameValue(valueOf, updatedAt, timeValue)
 	return true
 }
 
@@ -69,14 +66,28 @@ func SetUpdateAutoTimestamps(model Model) bool {
 
 	updatedAt := GetUpdatedAtColumnName(model)
 	timeValue := GetTimestampsValue(model)
-	updatedValueOf := reflect.ValueOf(model).Elem().FieldByName(Studly(updatedAt))
-	if updatedValueOf.IsZero() && updatedValueOf.CanSet() {
-		updatedValueOf.Set(reflect.ValueOf(timeValue))
-	}
+	SetStructNameValue(reflect.ValueOf(model).Elem(), updatedAt, timeValue)
 
 	return true
 }
 
+// SetStructNameValue 设置结构体指定字段的值
+func SetStructNameValue(value reflect.Value, column string, structNameValue interface{}) bool {
+	structName := Studly(column)
+	if _, ok := value.Type().FieldByName(structName); !ok {
+		return false
+	}
+
+	valueOf := value.FieldByName(structName)
+	if valueOf.IsZero() && valueOf.CanSet() {
+		valueOf.Set(reflect.ValueOf(structNameValue))
+		return true
+	}
+
+	return false
+}
+
+// GetTimestampsValue 设置时间值
 func GetTimestampsValue(model Model) interface{} {
 	// 判断是否实现了自定义处理时间
 	if timestampsValue, ok := model.(TimestampsValue); ok {

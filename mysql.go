@@ -2,25 +2,11 @@ package mysql
 
 import (
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
-	"reflect"
 	"strings"
 	"time"
-)
 
-const (
-	CreatedAt       = "created_at"
-	UpdatedAt       = "updated_at"
-	CreateEventName = "create"
-	UpdateEventName = "update"
-	QueryEventName  = "query"
-	DeleteEventName = "delete"
-)
-
-var (
-	CreatedAutoColumns = []string{CreatedAt, UpdatedAt}
-	UpdatedAutoColumns = []string{UpdatedAt}
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 type MySQl struct {
@@ -46,12 +32,6 @@ type QueryParams struct {
 	End   time.Time   `json:"end"`
 }
 
-type Column struct {
-	Name   string      `json:"name"`
-	Value  interface{} `json:"value"`
-	IsZero bool        `json:"is_zero"`
-}
-
 func NewMySQL(configValue *MySQLConfig) *MySQl {
 	db, err := sqlx.Connect(configValue.Driver, configValue.Dsn)
 	if err != nil {
@@ -74,7 +54,7 @@ func NewMySQL(configValue *MySQLConfig) *MySQl {
 // Find 查询数据
 func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 
-	where, args := m.toQueryWhere(model, QueryEventName, nil, zeroColumn)
+	where, args := m.toQueryWhere(model, nil, zeroColumn)
 	sql := fmt.Sprintf("SELECT * FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND "))
 
 	// 记录日志
@@ -93,7 +73,7 @@ func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 
 // Delete 删除数据
 func (m *MySQl) Delete(model Model, zeroColumns ...string) (int64, error) {
-	where, args := m.toQueryWhere(model, DeleteEventName, nil, zeroColumns)
+	where, args := m.toQueryWhere(model, nil, zeroColumns)
 	return m.Exec(
 		fmt.Sprintf("DELETE FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND ")),
 		args...,
@@ -103,7 +83,8 @@ func (m *MySQl) Delete(model Model, zeroColumns ...string) (int64, error) {
 // Update 修改数据
 func (m *MySQl) Update(model Model, zeroColumn ...string) (int64, error) {
 	pk := model.PK()
-	where, args := m.toQueryWhere(model, UpdateEventName, []string{pk}, zeroColumn)
+	SetUpdateAutoTimestamps(model)
+	where, args := m.toQueryWhere(model, []string{pk}, zeroColumn)
 	args = append(args, GetPKValue(model))
 	return m.Exec(
 		fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = ?", model.TableName(), strings.Join(where, ", "), pk),
@@ -113,7 +94,8 @@ func (m *MySQl) Update(model Model, zeroColumn ...string) (int64, error) {
 
 func (m *MySQl) Create(model Model) (err error) {
 	pk := model.PK()
-	columns := m.AnalyticStructure(model, CreateEventName)
+	SetCreateAutoTimestamps(model)
+	columns := StructColumns(model, "db")
 	fields := make([]string, 0)
 	bind := make([]string, 0)
 	bindValue := make([]interface{}, 0)
@@ -188,46 +170,14 @@ func (m *MySQl) logger(query *QueryParams) {
 	}
 }
 
-func (m *MySQl) AnalyticStructure(data interface{}, eventName string) []*Column {
-	v := reflect.ValueOf(data).Elem()
-	name := reflect.TypeOf(data).Elem()
-	columns := make([]*Column, 0)
-	for i, length := 0, v.NumField(); i < length; i++ {
-		column := &Column{Name: name.Field(i).Tag.Get("db")}
-		isNotHandler := true
-		fieldValue := v.Field(i)
-		switch eventName {
-		case CreateEventName:
-			if InStringSlice(CreatedAutoColumns, column.Name) {
-				m.setTimeValue(column, fieldValue)
-				isNotHandler = false
-			}
-		case UpdateEventName:
-			if InStringSlice(UpdatedAutoColumns, column.Name) {
-				m.setTimeValue(column, fieldValue)
-				isNotHandler = false
-			}
-		}
-
-		if isNotHandler {
-			column.Value = v.Field(i).Interface()
-			column.IsZero = v.Field(i).IsZero()
-		}
-
-		columns = append(columns, column)
-	}
-
-	return columns
-}
-
-func (m *MySQl) toQueryWhere(data Model, eventName string, exceptColumn, joinColumn []string) ([]string, []interface{}) {
+func (m *MySQl) toQueryWhere(data Model, exceptColumn, joinColumn []string) ([]string, []interface{}) {
 	where := make([]string, 0)
 	args := make([]interface{}, 0)
 
 	// 处理需要加入和排除的字段
-	except, join := m.toMap(exceptColumn), m.toMap(joinColumn)
+	except, join := SliceToMap(exceptColumn), SliceToMap(joinColumn)
 
-	columns := m.AnalyticStructure(data, eventName)
+	columns := StructColumns(data, "db")
 	for _, v := range columns {
 		// 先排除
 		if _, isExcept := except[v.Name]; isExcept {
@@ -243,27 +193,4 @@ func (m *MySQl) toQueryWhere(data Model, eventName string, exceptColumn, joinCol
 	}
 
 	return where, args
-}
-
-func (m *MySQl) toMap(str []string) map[string]bool {
-	data := make(map[string]bool)
-	for _, key := range str {
-		data[key] = true
-	}
-
-	return data
-}
-
-func (m *MySQl) setTimeValue(column *Column, value reflect.Value) {
-	timeNow := time.Now()
-	column.Value = timeNow
-	column.IsZero = false
-	if value.CanSet() {
-		switch value.Interface().(type) {
-		case time.Time:
-			value.Set(reflect.ValueOf(timeNow))
-		case Time:
-			value.Set(reflect.ValueOf(Time(timeNow)))
-		}
-	}
 }

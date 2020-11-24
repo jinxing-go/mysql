@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -9,12 +10,12 @@ import (
 )
 
 type User struct {
-	UserId    int64     `db:"user_id" json:"user_id"`
-	Username  string    `db:"username" json:"username"`
-	Password  string    `db:"password" json:"password"`
-	Status    int       `db:"status" json:"status"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt Time      `db:"updated_at" json:"updated_at"`
+	UserId    int64  `db:"user_id" json:"user_id"`
+	Username  string `db:"username" json:"username"`
+	Password  string `db:"password" json:"password"`
+	Status    int    `db:"status" json:"status"`
+	CreatedAt Time   `db:"created_at" json:"created_at"`
+	UpdatedAt Time   `db:"updated_at" json:"updated_at"`
 }
 
 func (*User) TableName() string {
@@ -23,6 +24,10 @@ func (*User) TableName() string {
 
 func (*User) PK() string {
 	return "user_id"
+}
+
+func (*User) TimestampsValue() interface{} {
+	return Time(time.Now())
 }
 
 type UserTimestamps struct {
@@ -69,6 +74,21 @@ func (*Log) PK() string {
 
 func (*Log) AutoTimestamps() bool {
 	return false
+}
+
+type LoginUser struct {
+	UserId    int64     `db:"user_id" json:"user_id"`
+	Username  string    `db:"username" json:"username"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (*LoginUser) TableName() string {
+	return "login_user"
+}
+
+func (*LoginUser) PK() string {
+	return "user_id"
 }
 
 func TestGetPkValue(t *testing.T) {
@@ -136,10 +156,26 @@ func TestGetUpdatedAtColumnName(t *testing.T) {
 func TestGetTimestampsValue(t *testing.T) {
 	user := &User{}
 	name := GetTimestampsValue(user)
-	_, ok := name.(time.Time)
+	_, ok := name.(Time)
 	assert.Equal(t, true, ok)
 
 	timestamps := &UserTimestamps{}
 	name = GetTimestampsValue(timestamps)
 	assert.Equal(t, Date(), name.(string))
+
+	loginUser := &LoginUser{}
+	timeValue := GetTimestampsValue(loginUser)
+	_, isTime := timeValue.(time.Time)
+	assert.Equal(t, true, isTime)
+}
+
+func TestSetTimestampsValue(t *testing.T) {
+	user := &User{}
+	value := reflect.ValueOf(user).Elem()
+	has := SetStructNameValue(value, "u", int64(1))
+	assert.Equal(t, false, has)
+
+	has = SetStructNameValue(value, "user_id", int64(1))
+	assert.Equal(t, true, has)
+	assert.Equal(t, int64(1), user.UserId)
 }
