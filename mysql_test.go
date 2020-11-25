@@ -152,8 +152,16 @@ func TestMySQl_toQueryWhere(t *testing.T) {
 }
 
 func TestMySQl_FindAll(t *testing.T) {
-	users := new([]*User)
-	// mySQL := NewTestMySQL(t, examplePathName)
-	m := &MySQl{}
-	m.FindAll(users)
+	users := make([]*User, 0)
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+	err := mySQL.FindAll(&users, "status = ?", 1)
+	assert.NoError(t, err)
+	for _, v := range users {
+		assert.Equal(t, true, v.UserId > 0)
+	}
+
+	assert.Panics(t, func() {
+		mySQL.FindAll(nil, "")
+	})
+
 }

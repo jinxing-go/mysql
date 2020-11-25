@@ -179,3 +179,39 @@ func TestSetTimestampsValue(t *testing.T) {
 	assert.Equal(t, true, has)
 	assert.Equal(t, int64(1), user.UserId)
 }
+
+func TestGetModel(t *testing.T) {
+	// 正常
+	user := &User{}
+	m, err := GetModel(user)
+	assert.NoError(t, err)
+	assert.Equal(t, "user", m.TableName())
+
+	// 错误
+	_, err = GetModel(nil)
+	if assert.Error(t, err) {
+		fmt.Println(err.Error())
+	}
+
+	var a *int
+	_, err = GetModel(a)
+	if assert.Error(t, err) {
+		fmt.Println(err.Error())
+	}
+
+	var b interface{}
+	_, err = GetModel(&b)
+	if assert.Error(t, err) {
+		fmt.Println(err.Error())
+	}
+
+	var c = make([]string, 0)
+	_, err = GetModel(&c)
+	if assert.Error(t, err) {
+		fmt.Println(err.Error())
+	}
+
+	var d = make([]*User, 0)
+	_, err = GetModel(&d)
+	assert.NoError(t, err)
+}

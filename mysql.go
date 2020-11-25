@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -74,57 +73,30 @@ func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 	return m.DB.Get(model, sql, args...)
 }
 
-func (m *MySQl) FindAll(models interface{}) (err error) {
-
-	mValue := reflect.ValueOf(models)
-	fmt.Printf("%#v\n", mValue)
-	if mValue.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("model argument must pass a pointer, not a value %#v", models))
+func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) (err error) {
+	model, err := GetModel(models)
+	if err != nil {
+		panic(err.Error())
 	}
 
-	if mValue.IsNil() {
-		panic(fmt.Sprintf("model argument cannot be nil pointer passed"))
+	if where != "" {
+		where = "WHERE " + where
 	}
 
-	if mValue.Elem().Type().Kind() != reflect.Slice {
-		panic(fmt.Sprintf("model argument must slice, but get %#v", models))
-	}
+	sql := fmt.Sprintf("SELECT * FROM `%s` %s", model.TableName(), where)
 
-	cv := reflect.New(mValue.Type()).Elem().Interface()
-	fmt.Printf("%#v\n", cv)
-	switch cv.(type) {
-	case Model:
-		fmt.Printf("123\n")
-	case []Model:
-		fmt.Printf("456\n")
-	default:
-		fmt.Printf("789\n")
-	}
+	// 记录日志
+	defer func(start time.Time) {
+		m.logger(&QueryParams{
+			Query: sql,
+			Error: err,
+			Args:  args,
+			Start: start,
+			End:   time.Now(),
+		})
+	}(time.Now())
 
-	// // fmt.Printf("%#v", mValue.Elem().Index(0).Interface())
-	// switch mValue.Elem().Slice(0, 1).Interface().(type) {
-	// case Model:
-	// 	fmt.Printf("123\n")
-	// case []Model:
-	// 	fmt.Printf("789\n")
-	// default:
-	// 	fmt.Printf("hhhhhh")
-	// }
-	//
-	// sql := fmt.Sprintf("SELECT * FROM `%s` WHERE %s ", "user", "")
-	// // 记录日志
-	// defer func(start time.Time) {
-	// 	m.logger(&QueryParams{
-	// 		Query: sql,
-	// 		Error: err,
-	// 		Start: start,
-	// 		End:   time.Now(),
-	// 	})
-	// }(time.Now())
-	//
-	// return m.DB.Select(models, sql)
-
-	return nil
+	return m.DB.Select(models, sql, args...)
 }
 
 // 创建数据
