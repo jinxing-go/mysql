@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
@@ -73,27 +74,60 @@ func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 	return m.DB.Get(model, sql, args...)
 }
 
-// Delete 删除数据
-func (m *MySQl) Delete(model Model, zeroColumns ...string) (int64, error) {
-	where, args := m.toQueryWhere(model, nil, zeroColumns)
-	return m.Exec(
-		fmt.Sprintf("DELETE FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND ")),
-		args...,
-	)
+func (m *MySQl) FindAll(models interface{}) (err error) {
+
+	mValue := reflect.ValueOf(models)
+	fmt.Printf("%#v\n", mValue)
+	if mValue.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("model argument must pass a pointer, not a value %#v", models))
+	}
+
+	if mValue.IsNil() {
+		panic(fmt.Sprintf("model argument cannot be nil pointer passed"))
+	}
+
+	if mValue.Elem().Type().Kind() != reflect.Slice {
+		panic(fmt.Sprintf("model argument must slice, but get %#v", models))
+	}
+
+	cv := reflect.New(mValue.Type()).Elem().Interface()
+	fmt.Printf("%#v\n", cv)
+	switch cv.(type) {
+	case Model:
+		fmt.Printf("123\n")
+	case []Model:
+		fmt.Printf("456\n")
+	default:
+		fmt.Printf("789\n")
+	}
+
+	// // fmt.Printf("%#v", mValue.Elem().Index(0).Interface())
+	// switch mValue.Elem().Slice(0, 1).Interface().(type) {
+	// case Model:
+	// 	fmt.Printf("123\n")
+	// case []Model:
+	// 	fmt.Printf("789\n")
+	// default:
+	// 	fmt.Printf("hhhhhh")
+	// }
+	//
+	// sql := fmt.Sprintf("SELECT * FROM `%s` WHERE %s ", "user", "")
+	// // 记录日志
+	// defer func(start time.Time) {
+	// 	m.logger(&QueryParams{
+	// 		Query: sql,
+	// 		Error: err,
+	// 		Start: start,
+	// 		End:   time.Now(),
+	// 	})
+	// }(time.Now())
+	//
+	// return m.DB.Select(models, sql)
+
+	return nil
 }
 
-// Update 修改数据
-func (m *MySQl) Update(model Model, zeroColumn ...string) (int64, error) {
-	pk := model.PK()
-	SetUpdateAutoTimestamps(model)
-	where, args := m.toQueryWhere(model, []string{pk}, zeroColumn)
-	args = append(args, GetPKValue(model))
-	return m.Exec(
-		fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = ?", model.TableName(), strings.Join(where, ", "), pk),
-		args...,
-	)
-}
-
+// 创建数据
 func (m *MySQl) Create(model Model) (err error) {
 	pk := model.PK()
 	SetCreateAutoTimestamps(model)
@@ -138,6 +172,27 @@ func (m *MySQl) Create(model Model) (err error) {
 	SetPKValue(model, id)
 
 	return err
+}
+
+// Update 修改数据
+func (m *MySQl) Update(model Model, zeroColumn ...string) (int64, error) {
+	pk := model.PK()
+	SetUpdateAutoTimestamps(model)
+	where, args := m.toQueryWhere(model, []string{pk}, zeroColumn)
+	args = append(args, GetPKValue(model))
+	return m.Exec(
+		fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = ?", model.TableName(), strings.Join(where, ", "), pk),
+		args...,
+	)
+}
+
+// Delete 删除数据
+func (m *MySQl) Delete(model Model, zeroColumns ...string) (int64, error) {
+	where, args := m.toQueryWhere(model, nil, zeroColumns)
+	return m.Exec(
+		fmt.Sprintf("DELETE FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND ")),
+		args...,
+	)
 }
 
 func (m *MySQl) Exec(sql string, args ...interface{}) (i int64, err error) {

@@ -150,3 +150,10 @@ func TestMySQl_toQueryWhere(t *testing.T) {
 	assert.Equal(t, 3, len(args))
 	fmt.Println(where, args)
 }
+
+func TestMySQl_FindAll(t *testing.T) {
+	users := new([]*User)
+	// mySQL := NewTestMySQL(t, examplePathName)
+	m := &MySQl{}
+	m.FindAll(users)
+}
