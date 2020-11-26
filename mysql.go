@@ -53,11 +53,22 @@ func NewMySQL(configValue *MySQLConfig) *MySQl {
 	}
 }
 
-// Find 查询数据
-func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
+func (m *MySQl) Get(data interface{}, sql string, args ...interface{}) (err error) {
+	// 记录日志
+	defer func(start time.Time) {
+		m.logger(&QueryParams{
+			Query: sql,
+			Args:  args,
+			Error: err,
+			Start: start,
+			End:   time.Now(),
+		})
+	}(time.Now())
 
-	where, args := m.toQueryWhere(model, nil, zeroColumn)
-	sql := fmt.Sprintf("SELECT * FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND "))
+	return m.DB.Get(data, sql, args...)
+}
+
+func (m *MySQl) Select(data interface{}, sql string, args ...interface{}) (err error) {
 
 	// 记录日志
 	defer func(start time.Time) {
@@ -70,7 +81,14 @@ func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 		})
 	}(time.Now())
 
-	return m.DB.Get(model, sql, args...)
+	return m.DB.Select(data, sql, args...)
+}
+
+// Find 查询数据
+func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
+	where, args := m.toQueryWhere(model, nil, zeroColumn)
+	sql := fmt.Sprintf("SELECT * FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND "))
+	return m.Get(model, sql, args...)
 }
 
 func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) (err error) {
