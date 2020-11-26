@@ -84,6 +84,10 @@ func (m *MySQl) Select(data interface{}, sql string, args ...interface{}) (err e
 	return m.DB.Select(data, sql, args...)
 }
 
+func (m *MySQl) Builder(data interface{}) *Builder {
+	return NewBuilder(m, data)
+}
+
 // Find 查询数据
 func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 	where, args := m.toQueryWhere(model, nil, zeroColumn)
@@ -103,18 +107,7 @@ func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) (
 
 	sql := fmt.Sprintf("SELECT * FROM `%s` %s", model.TableName(), where)
 
-	// 记录日志
-	defer func(start time.Time) {
-		m.logger(&QueryParams{
-			Query: sql,
-			Error: err,
-			Args:  args,
-			Start: start,
-			End:   time.Now(),
-		})
-	}(time.Now())
-
-	return m.DB.Select(models, sql, args...)
+	return m.Select(models, sql, args...)
 }
 
 // 创建数据

@@ -163,5 +163,9 @@ func TestMySQl_FindAll(t *testing.T) {
 	assert.Panics(t, func() {
 		mySQL.FindAll(nil, "")
 	})
+}
 
+func TestMySQl_Builder(t *testing.T) {
+	my := &MySQl{}
+	assert.Equal(t, my.Builder(nil), &Builder{db: my, data: nil})
 }

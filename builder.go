@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"strings"
 )
 
@@ -15,6 +16,8 @@ type where struct {
 type Builder struct {
 	// 使用的db
 	db *MySQl
+
+	data interface{}
 
 	// 查询字段
 	columns []string
@@ -41,8 +44,14 @@ type Builder struct {
 	offset int
 }
 
-func NewBuilder(db *MySQl) *Builder {
-	return &Builder{db: db}
+func NewBuilder(db *MySQl, model interface{}) *Builder {
+	builder := &Builder{db: db, data: model}
+	m, err := GetModel(model)
+	if err == nil {
+		builder.from = m.TableName()
+	}
+
+	return builder
 }
 
 func (b *Builder) Where(column string, args ...interface{}) *Builder {
@@ -70,11 +79,9 @@ func (b *Builder) Where(column string, args ...interface{}) *Builder {
 				b.bindings = append(b.bindings, args[1])
 			}
 		case "between", "BETWEEN", "NOT BETWEEN", "not between":
-			b.wheres = append(b.wheres, fmt.Sprintf("`%s` %s ? AND ?", column, strings.ToUpper(args[0].(string))))
 			if l > 2 {
+				b.wheres = append(b.wheres, fmt.Sprintf("`%s` %s ? AND ?", column, strings.ToUpper(args[0].(string))))
 				b.bindings = append(b.bindings, args[1:]...)
-			} else {
-				b.bindings = append(b.bindings, args[1].([]interface{})...)
 			}
 		default:
 			b.wheres = append(b.wheres, fmt.Sprintf("`%s` %s ?", column, strings.ToUpper(args[0].(string))))
@@ -104,8 +111,22 @@ func (b *Builder) Table(table string) *Builder {
 	return b
 }
 
-func (b *Builder) One(data interface{}) error {
-	return b.db.Get(data, fmt.Sprintf("%s LIMIT 1", b), b.bindings...)
+func (b *Builder) One() error {
+	query, bindings, err := sqlx.In(fmt.Sprintf("%s LIMIT 1", b), b.bindings...)
+	if err != nil {
+		return err
+	}
+
+	return b.db.Get(b.data, query, bindings...)
+}
+
+func (b *Builder) All() error {
+	query, bindings, err := sqlx.In(b.String(), b.bindings...)
+	if err != nil {
+		return err
+	}
+
+	return b.db.Select(b.data, query, bindings...)
 }
 
 func (b *Builder) String() string {
