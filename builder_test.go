@@ -27,6 +27,16 @@ func TestBuilder_One(t *testing.T) {
 	err = NewBuilder(mySQL, user).Where("status", "in", []interface{}{}).One()
 	fmt.Printf("err = %v \n", err)
 	assert.Error(t, err)
+
+	st := struct {
+		Username string `db:"username"`
+		Password string `db:"password"`
+	}{}
+
+	err = mySQL.Builder(&st).Table("user").Select("username", "password").One()
+	assert.NoError(t, err)
+	assert.Equal(t, "test1", st.Username)
+	assert.Equal(t, "v123456", st.Password)
 }
 
 func TestBuilder_Select(t *testing.T) {
