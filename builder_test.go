@@ -95,7 +95,7 @@ func TestBuilder_Where1(t *testing.T) {
 			Where("created_at", "<=", DateTime())
 	})
 
-	fmt.Printf("%#v \n", builder.whereFormat())
+	fmt.Printf("%#v \n", builder.whereFormat(true))
 }
 
 func TestBuilder_Delete(t *testing.T) {
@@ -119,4 +119,55 @@ func TestBuilder_Update(t *testing.T) {
 		Update()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(3), num)
+}
+
+func TestBuilder_OrderBy(t *testing.T) {
+	s := NewBuilder(&MySQl{}, &User{}).
+		OrderBy("username", "desc").
+		OrderBy("user_id", "desc").
+		GroupBy("user_id", "username").
+		Having("username = ? AND `username` = ?", 1, 2).
+		String()
+	assert.Equal(t, "SELECT * FROM `user` GROUP BY `user_id`, `username` HAVING username = ? AND `username` = ? ORDER BY `username` DESC, `user_id` DESC", s)
+}
+
+func TestBuilder_warp(t *testing.T) {
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "test",
+			want: "`test`",
+		},
+		{
+			name: "test.username",
+			want: "`test`.`username`",
+		},
+		{
+			name: "table as `t1`",
+			want: "table as `t1`",
+		},
+		{
+			name: "table as t1",
+			want: "`table` AS `t1`",
+		},
+		{
+			name: "table AS t1",
+			want: "`table` AS `t1`",
+		},
+		{
+			name: "t1 username",
+			want: "`t1` `username`",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &Builder{}
+			if got := b.warp(tt.name); got != tt.want {
+				t.Errorf("warp() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
