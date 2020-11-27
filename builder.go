@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -92,7 +93,8 @@ func (b *Builder) Having(having string, args ...interface{}) *Builder {
 }
 
 func (b *Builder) One() error {
-	return b.db.Get(b.data, fmt.Sprintf("%s LIMIT 1", b), b.bindings...)
+	b.limit = 1
+	return b.db.Get(b.data, fmt.Sprintf("%s", b), b.bindings...)
 }
 
 func (b *Builder) All() error {
@@ -111,13 +113,14 @@ func (b *Builder) Delete() (int64, error) {
 
 func (b *Builder) String() string {
 	return fmt.Sprintf(
-		"SELECT %s FROM %s%s%s%s%s",
+		"SELECT %s FROM %s%s%s%s%s%s",
 		b.columnsFormat(),
 		b.warp(b.from),
 		b.whereFormat(true),
 		b.groupByFormat(),
 		b.havingFormat(),
 		b.orderByFormat(),
+		b.limitFormat(),
 	)
 }
 
@@ -174,6 +177,14 @@ func (b *Builder) orderByFormat() string {
 	}
 
 	return fmt.Sprintf(" ORDER BY %s", strings.Join(b.orders, ", "))
+}
+
+func (b *Builder) limitFormat() string {
+	if b.limit == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf(" LIMIT %s", strconv.Itoa(b.limit))
 }
 
 func (b *Builder) toWhere(boolean string, column interface{}, args ...interface{}) *Builder {
