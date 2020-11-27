@@ -61,6 +61,31 @@ func SliceToMap(str []string) map[string]bool {
 	return data
 }
 
+func ToQueryWhere(data interface{}, exceptColumn, joinColumn []string) ([]string, []interface{}) {
+	where := make([]string, 0)
+	args := make([]interface{}, 0)
+
+	// 处理需要加入和排除的字段
+	except, join := SliceToMap(exceptColumn), SliceToMap(joinColumn)
+
+	columns := StructColumns(data, "db")
+	for _, v := range columns {
+		// 先排除
+		if _, isExcept := except[v.Name]; isExcept {
+			continue
+		}
+
+		// 需要加入
+		_, isJoin := join[v.Name]
+		if !v.IsZero || isJoin {
+			where = append(where, fmt.Sprintf("`%s` = ?", v.Name))
+			args = append(args, v.Value)
+		}
+	}
+
+	return where, args
+}
+
 func getDsn(name string) string {
 	return fmt.Sprintf(
 		"%s:%s@tcp(%s:3306)",

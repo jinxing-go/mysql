@@ -2,8 +2,9 @@ package mysql
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBuilder_All(t *testing.T) {
@@ -70,14 +71,52 @@ func TestBuilder_Where(t *testing.T) {
 	builder := NewBuilder(mySQL, user).Table("user").
 		Where("username = ?", "test1").
 		Where("status = 1").
+		Where(func(builder *Builder) *Builder {
+			return builder.Where("status", 1).Where("status", "!=", 10)
+		}).
+		Where(1).
 		Where("status", "between", []int{1, 2}).
 		Where("updated_at", "between", "2020-11-22 16:19:11", DateTime()).
 		Where("created_at", ">=", "2020-11-14 22:18:37").
 		Where("password", "v123456")
 	fmt.Printf("%s\n", builder)
-	assert.Equal(t, 5, len(builder.wheres))
+	assert.Equal(t, 6, len(builder.wheres))
 
 	err := builder.One()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), user.UserId)
+}
+
+func TestBuilder_Where1(t *testing.T) {
+	builder := &Builder{}
+	builder.Where(func(builder *Builder) *Builder {
+		return builder.Where("status", 1).
+			OrWhere("status", 2).
+			Where("created_at", "<=", DateTime())
+	})
+
+	fmt.Printf("%#v \n", builder.whereFormat())
+}
+
+func TestBuilder_Delete(t *testing.T) {
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+	num, err := mySQL.Builder(&User{}).Where("status", 1).Delete()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(3), num)
+}
+
+func TestBuilder_Update(t *testing.T) {
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+
+	var fn BuilderFn = func(builder *Builder) *Builder {
+		return builder.Where("created_at", "<=", DateTime()).
+			Where("status", "in", 1, 2)
+	}
+
+	num, err := mySQL.Builder(&User{Status: 2}).
+		Where("status", 1).
+		Where(fn).
+		Update()
+	assert.NoError(t, err)
+	assert.Equal(t, int64(3), num)
 }

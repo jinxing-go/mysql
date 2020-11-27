@@ -2,16 +2,10 @@ package mysql
 
 import (
 	"fmt"
-	"github.com/jmoiron/sqlx"
 	"strings"
 )
 
-type where struct {
-	column   string
-	operator string
-	value    interface{}
-	boolean  string
-}
+type BuilderFn func(builder *Builder) *Builder
 
 type Builder struct {
 	// 使用的db
@@ -54,42 +48,12 @@ func NewBuilder(db *MySQl, model interface{}) *Builder {
 	return builder
 }
 
-func (b *Builder) Where(column string, args ...interface{}) *Builder {
-	// 自己写的 status = ? and age = ?
-	if strings.Index(column, "?") != -1 {
-		b.wheres = append(b.wheres, column)
-		b.bindings = append(b.bindings, args...)
-		return b
-	}
+func (b *Builder) OrWhere(column interface{}, args ...interface{}) *Builder {
+	return b.toWhere("OR", column, args...)
+}
 
-	l := len(args)
-	switch l {
-	case 1: // Where("status", 1)
-		b.wheres = append(b.wheres, fmt.Sprintf("`%s` = ?", column))
-		b.bindings = append(b.bindings, args[0])
-	case 0: // Where("status = 1")
-		b.wheres = append(b.wheres, column)
-	default: // Where("status", "in", [1, 2, 3]) or Where("status", "between", 1, 2) or Where("age", ">", 1)
-		switch args[0].(string) {
-		case "in", "IN", "not in", "NOT IN":
-			b.wheres = append(b.wheres, fmt.Sprintf("`%s` %s (?)", column, strings.ToUpper(args[0].(string))))
-			if l > 2 {
-				b.bindings = append(b.bindings, args[1:])
-			} else {
-				b.bindings = append(b.bindings, args[1])
-			}
-		case "between", "BETWEEN", "NOT BETWEEN", "not between":
-			if l > 2 {
-				b.wheres = append(b.wheres, fmt.Sprintf("`%s` %s ? AND ?", column, strings.ToUpper(args[0].(string))))
-				b.bindings = append(b.bindings, args[1:]...)
-			}
-		default:
-			b.wheres = append(b.wheres, fmt.Sprintf("`%s` %s ?", column, strings.ToUpper(args[0].(string))))
-			b.bindings = append(b.bindings, args[1])
-		}
-	}
-
-	return b
+func (b *Builder) Where(column interface{}, args ...interface{}) *Builder {
+	return b.toWhere("AND", column, args...)
 }
 
 func (b *Builder) Select(column interface{}, columns ...string) *Builder {
@@ -112,21 +76,21 @@ func (b *Builder) Table(table string) *Builder {
 }
 
 func (b *Builder) One() error {
-	query, bindings, err := sqlx.In(fmt.Sprintf("%s LIMIT 1", b), b.bindings...)
-	if err != nil {
-		return err
-	}
-
-	return b.db.Get(b.data, query, bindings...)
+	return b.db.Get(b.data, fmt.Sprintf("%s LIMIT 1", b), b.bindings...)
 }
 
 func (b *Builder) All() error {
-	query, bindings, err := sqlx.In(b.String(), b.bindings...)
-	if err != nil {
-		return err
-	}
+	return b.db.Select(b.data, b.String(), b.bindings...)
+}
 
-	return b.db.Select(b.data, query, bindings...)
+func (b *Builder) Update(zeroColumn ...string) (int64, error) {
+	setColumns, args := ToQueryWhere(b.data, nil, zeroColumn)
+	args = append(args, b.bindings...)
+	return b.db.Exec(fmt.Sprintf("UPDATE `%s` SET %s WHERE %s", b.from, strings.Join(setColumns, ","), b.whereFormat()), args...)
+}
+
+func (b *Builder) Delete() (int64, error) {
+	return b.db.Exec(fmt.Sprintf("DELETE FROM `%s` WHERE %s", b.from, b.whereFormat()), b.bindings...)
 }
 
 func (b *Builder) String() string {
@@ -142,8 +106,73 @@ func (b *Builder) String() string {
 
 	var where string
 	if b.wheres != nil && len(b.wheres) > 0 {
-		where = fmt.Sprintf(" WHERE %s", strings.Join(b.wheres, " AND "))
+		where = fmt.Sprintf(" WHERE %s", b.whereFormat())
 	}
 
 	return fmt.Sprintf("SELECT %s FROM `%s`%s", strings.Join(b.columns, ", "), b.from, where)
+}
+
+func (b *Builder) whereFormat() string {
+	str := strings.Join(b.wheres, " ")
+	str = strings.TrimLeft(str, "AND ")
+	str = strings.TrimLeft(str, "OR ")
+	return str
+}
+
+func (b *Builder) toWhere(boolean string, column interface{}, args ...interface{}) *Builder {
+
+	// 函数执行
+	if fn, ok := column.(func(builder *Builder) *Builder); ok {
+		builder := fn(&Builder{})
+		b.wheres = append(b.wheres, fmt.Sprintf("%s (%s)", boolean, builder.whereFormat()))
+		b.bindings = append(b.bindings, builder.bindings...)
+		return b
+	} else if fn, ok := column.(BuilderFn); ok {
+		builder := fn(&Builder{})
+		b.wheres = append(b.wheres, fmt.Sprintf("%s (%s)", boolean, builder.whereFormat()))
+		b.bindings = append(b.bindings, builder.bindings...)
+		return b
+	}
+
+	// 字符串处理
+	field, ok := column.(string)
+	if !ok {
+		return b
+	}
+
+	// 自己写的 status = ? and age = ?
+	if strings.Index(field, "?") != -1 {
+		b.wheres = append(b.wheres, fmt.Sprintf("%s (%s)", boolean, field))
+		b.bindings = append(b.bindings, args...)
+		return b
+	}
+
+	l := len(args)
+	switch l {
+	case 1: // Where("status", 1)
+		b.wheres = append(b.wheres, fmt.Sprintf("%s `%s` = ?", boolean, field))
+		b.bindings = append(b.bindings, args[0])
+	case 0: // Where("status = 1")
+		b.wheres = append(b.wheres, fmt.Sprintf("%s (%s)", boolean, field))
+	default: // Where("status", "in", [1, 2, 3]) or Where("status", "between", 1, 2) or Where("age", ">", 1)
+		switch args[0].(string) {
+		case "in", "IN", "not in", "NOT IN":
+			b.wheres = append(b.wheres, fmt.Sprintf("%s `%s` %s (?)", boolean, field, strings.ToUpper(args[0].(string))))
+			if l > 2 {
+				b.bindings = append(b.bindings, args[1:])
+			} else {
+				b.bindings = append(b.bindings, args[1])
+			}
+		case "between", "BETWEEN", "NOT BETWEEN", "not between":
+			if l > 2 {
+				b.wheres = append(b.wheres, fmt.Sprintf("%s `%s` %s ? AND ?", boolean, field, strings.ToUpper(args[0].(string))))
+				b.bindings = append(b.bindings, args[1:]...)
+			}
+		default:
+			b.wheres = append(b.wheres, fmt.Sprintf("%s `%s` %s ?", boolean, field, strings.ToUpper(args[0].(string))))
+			b.bindings = append(b.bindings, args[1])
+		}
+	}
+
+	return b
 }

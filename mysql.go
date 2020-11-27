@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -53,35 +54,55 @@ func NewMySQL(configValue *MySQLConfig) *MySQl {
 	}
 }
 
-func (m *MySQl) Get(data interface{}, sql string, args ...interface{}) (err error) {
+func (m *MySQl) Get(data interface{}, query string, args ...interface{}) (err error) {
+
+	var (
+		queryString string
+		bindings    []interface{}
+	)
+
+	queryString, bindings, err = sqlx.In(query, args...)
+	if err != nil {
+		return err
+	}
+
 	// 记录日志
 	defer func(start time.Time) {
 		m.logger(&QueryParams{
-			Query: sql,
-			Args:  args,
+			Query: queryString,
+			Args:  bindings,
 			Error: err,
 			Start: start,
 			End:   time.Now(),
 		})
 	}(time.Now())
 
-	return m.DB.Get(data, sql, args...)
+	return m.DB.Get(data, queryString, bindings...)
 }
 
-func (m *MySQl) Select(data interface{}, sql string, args ...interface{}) (err error) {
+func (m *MySQl) Select(data interface{}, query string, args ...interface{}) (err error) {
+	var (
+		queryString string
+		bindings    []interface{}
+	)
+
+	queryString, bindings, err = sqlx.In(query, args...)
+	if err != nil {
+		return err
+	}
 
 	// 记录日志
 	defer func(start time.Time) {
 		m.logger(&QueryParams{
-			Query: sql,
-			Args:  args,
+			Query: queryString,
+			Args:  bindings,
 			Error: err,
 			Start: start,
 			End:   time.Now(),
 		})
 	}(time.Now())
 
-	return m.DB.Select(data, sql, args...)
+	return m.DB.Select(data, queryString, bindings...)
 }
 
 func (m *MySQl) Builder(data interface{}) *Builder {
@@ -90,12 +111,12 @@ func (m *MySQl) Builder(data interface{}) *Builder {
 
 // Find 查询数据
 func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
-	where, args := m.toQueryWhere(model, nil, zeroColumn)
-	sql := fmt.Sprintf("SELECT * FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND "))
-	return m.Get(model, sql, args...)
+	where, args := ToQueryWhere(model, nil, zeroColumn)
+	query := fmt.Sprintf("SELECT * FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND "))
+	return m.Get(model, query, args...)
 }
 
-func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) (err error) {
+func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) error {
 	model, err := GetModel(models)
 	if err != nil {
 		panic(err.Error())
@@ -105,9 +126,7 @@ func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) (
 		where = "WHERE " + where
 	}
 
-	sql := fmt.Sprintf("SELECT * FROM `%s` %s", model.TableName(), where)
-
-	return m.Select(models, sql, args...)
+	return m.Select(models, fmt.Sprintf("SELECT * FROM `%s` %s", model.TableName(), where), args...)
 }
 
 // 创建数据
@@ -126,7 +145,7 @@ func (m *MySQl) Create(model Model) (err error) {
 		}
 	}
 
-	sql := fmt.Sprintf(
+	query := fmt.Sprintf(
 		"INSERT INTO `%s` (%s) VALUES (%s)",
 		model.TableName(),
 		strings.Join(fields, ", "),
@@ -135,7 +154,7 @@ func (m *MySQl) Create(model Model) (err error) {
 
 	defer func(start time.Time) {
 		m.logger(&QueryParams{
-			Query: sql,
+			Query: query,
 			Args:  bindValue,
 			Error: err,
 			Start: start,
@@ -144,13 +163,15 @@ func (m *MySQl) Create(model Model) (err error) {
 	}(time.Now())
 
 	// 执行SQL
-	result, err := m.DB.Exec(sql, bindValue...)
+	var result sql.Result
+	result, err = m.DB.Exec(query, bindValue...)
 	if err != nil {
 		return err
 	}
 
 	// 获取自增ID
-	id, err := result.LastInsertId()
+	var id int64
+	id, err = result.LastInsertId()
 	// 赋值主键值
 	SetPKValue(model, id)
 
@@ -161,65 +182,49 @@ func (m *MySQl) Create(model Model) (err error) {
 func (m *MySQl) Update(model Model, zeroColumn ...string) (int64, error) {
 	pk := model.PK()
 	SetUpdateAutoTimestamps(model)
-	where, args := m.toQueryWhere(model, []string{pk}, zeroColumn)
+	where, args := ToQueryWhere(model, []string{pk}, zeroColumn)
 	args = append(args, GetPKValue(model))
 	return m.Exec(
-		fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = ?", model.TableName(), strings.Join(where, ", "), pk),
+		fmt.Sprintf("UPDATE `%s` SET %s WHERE `%s` = ? LIMIT 1", model.TableName(), strings.Join(where, ", "), pk),
 		args...,
 	)
 }
 
 // Delete 删除数据
 func (m *MySQl) Delete(model Model, zeroColumns ...string) (int64, error) {
-	where, args := m.toQueryWhere(model, nil, zeroColumns)
+	where, args := ToQueryWhere(model, nil, zeroColumns)
 	return m.Exec(
 		fmt.Sprintf("DELETE FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND ")),
 		args...,
 	)
 }
 
-func (m *MySQl) Exec(sql string, args ...interface{}) (i int64, err error) {
+func (m *MySQl) Exec(query string, args ...interface{}) (i int64, err error) {
+
+	// IN 处理
+	queryString, bindings, err1 := sqlx.In(query, args...)
+	if err1 != nil {
+		return 0, err1
+	}
+
+	// 记录日志
 	defer func(start time.Time) {
 		m.logger(&QueryParams{
-			Query: sql,
-			Args:  args,
+			Query: queryString,
+			Args:  bindings,
 			Error: err,
 			Start: start,
 			End:   time.Now(),
 		})
 	}(time.Now())
 
-	result, err := m.DB.Exec(sql, args...)
+	var result sql.Result
+	result, err = m.DB.Exec(queryString, bindings...)
 	if err != nil {
 		return 0, err
 	}
 
 	return result.RowsAffected()
-}
-
-func (m *MySQl) toQueryWhere(data Model, exceptColumn, joinColumn []string) ([]string, []interface{}) {
-	where := make([]string, 0)
-	args := make([]interface{}, 0)
-
-	// 处理需要加入和排除的字段
-	except, join := SliceToMap(exceptColumn), SliceToMap(joinColumn)
-
-	columns := StructColumns(data, "db")
-	for _, v := range columns {
-		// 先排除
-		if _, isExcept := except[v.Name]; isExcept {
-			continue
-		}
-
-		// 需要加入
-		_, isJoin := join[v.Name]
-		if !v.IsZero || isJoin {
-			where = append(where, fmt.Sprintf("`%s` = ?", v.Name))
-			args = append(args, v.Value)
-		}
-	}
-
-	return where, args
 }
 
 func (m *MySQl) logger(params *QueryParams) {

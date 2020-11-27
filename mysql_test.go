@@ -2,7 +2,6 @@ package mysql
 
 import (
 	"database/sql"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -106,49 +105,6 @@ func TestMySQl_Exec(t *testing.T) {
 	row3, err3 := mySQL.Exec("update `users` set `username` = ? where `user_id` = ?", "jinxing.liu", 100)
 	assert.Error(t, err3)
 	assert.Equal(t, int64(0), row3)
-}
-
-func TestMySQl_toQueryWhere(t *testing.T) {
-	db := &MySQl{}
-	// 没有排除、没有添加
-	where, args := db.toQueryWhere(&User{
-		UserId:   1,
-		Username: "jinxing.liu",
-	}, nil, nil)
-
-	assert.Equal(t, 2, len(where))
-	assert.Equal(t, 2, len(args))
-	fmt.Println(where, args)
-
-	// 有排除、无添加
-	where, args = db.toQueryWhere(&User{
-		UserId:   1,
-		Username: "jinxing.liu",
-	}, []string{"user_id"}, nil)
-
-	assert.Equal(t, 1, len(where))
-	assert.Equal(t, 1, len(args))
-	fmt.Println(where, args)
-
-	// 无排除、有添加
-	where, args = db.toQueryWhere(&User{
-		UserId:   1,
-		Username: "jinxing.liu",
-	}, nil, []string{"password", "status"})
-
-	assert.Equal(t, 4, len(where))
-	assert.Equal(t, 4, len(args))
-	fmt.Println(where, args)
-
-	// 有排除、有添加
-	where, args = db.toQueryWhere(&User{
-		UserId:   1,
-		Username: "jinxing.liu",
-	}, []string{"user_id"}, []string{"password", "status"})
-
-	assert.Equal(t, 3, len(where))
-	assert.Equal(t, 3, len(args))
-	fmt.Println(where, args)
 }
 
 func TestMySQl_FindAll(t *testing.T) {
