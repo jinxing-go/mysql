@@ -105,6 +105,10 @@ func TestMySQl_Exec(t *testing.T) {
 	row3, err3 := mySQL.Exec("update `users` set `username` = ? where `user_id` = ?", "jinxing.liu", 100)
 	assert.Error(t, err3)
 	assert.Equal(t, int64(0), row3)
+
+	row4, err4 := mySQL.Exec("update `users` set `username` = ? where `user_id` IN (?)", "jinxing.liu", []interface{}{})
+	assert.Error(t, err4)
+	assert.Equal(t, int64(0), row4)
 }
 
 func TestMySQl_FindAll(t *testing.T) {
