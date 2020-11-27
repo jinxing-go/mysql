@@ -241,7 +241,7 @@ func (b *Builder) warp(s string) string {
 	}
 
 	// table as username
-	if strings.Index(s, " as") != -1 {
+	if strings.Index(s, " as ") != -1 {
 		str := strings.Split(s, "as")
 		for k, v := range str {
 			str[k] = fmt.Sprintf("`%s`", strings.TrimSpace(v))
@@ -251,7 +251,7 @@ func (b *Builder) warp(s string) string {
 	}
 
 	// table AS username
-	if strings.Index(s, " AS") != -1 {
+	if strings.Index(s, " AS ") != -1 {
 		str := strings.Split(s, "AS")
 		for k, v := range str {
 			str[k] = fmt.Sprintf("`%s`", strings.TrimSpace(v))
