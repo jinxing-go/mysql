@@ -16,7 +16,7 @@ type MySQl struct {
 	Logger  Logger
 }
 
-type MySQLConfig struct {
+type Config struct {
 	Enable       bool   `toml:"enable" json:"enable"`
 	Driver       string `toml:"driver" json:"driver"`
 	Dsn          string `toml:"dsn" json:"dsn"`
@@ -34,7 +34,7 @@ type QueryParams struct {
 	End   time.Time   `json:"end"`
 }
 
-func NewMySQL(configValue *MySQLConfig) *MySQl {
+func NewMySQL(configValue *Config) *MySQl {
 	db, err := sqlx.Connect(configValue.Driver, configValue.Dsn)
 	if err != nil {
 		fmt.Println("MySQL connection error: ", err)

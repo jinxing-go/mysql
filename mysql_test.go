@@ -14,7 +14,7 @@ const (
 
 func TestNewMySQL(t *testing.T) {
 	assert.Panics(t, func() {
-		NewMySQL(&MySQLConfig{
+		NewMySQL(&Config{
 			Dsn:     "root:test123456789@tcp(127.0.0.1:3306)/test?charset=utf8&parseTime=True&loc=Asia%2FShanghai",
 			Driver:  "mysql",
 			ShowSql: true,
@@ -22,7 +22,7 @@ func TestNewMySQL(t *testing.T) {
 	})
 
 	t.Run("正常连接", func(t *testing.T) {
-		NewMySQL(&MySQLConfig{
+		NewMySQL(&Config{
 			Dsn:     getDsn(""),
 			Driver:  "mysql",
 			ShowSql: true,

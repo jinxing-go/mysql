@@ -97,7 +97,7 @@ func getDsn(name string) string {
 
 func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
 
-	mySQL := NewMySQL(&MySQLConfig{
+	mySQL := NewMySQL(&Config{
 		Dsn:         getDsn(""),
 		Driver:      "mysql",
 		ShowSql:     false,
@@ -110,7 +110,7 @@ func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
 	mySQL.Exec(name)
 	mySQL.DB.Close()
 
-	mySQL = NewMySQL(&MySQLConfig{
+	mySQL = NewMySQL(&Config{
 		Dsn:         getDsn(database),
 		Driver:      "mysql",
 		ShowSql:     false,
