@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-type BuilderFn func(builder *Builder) *Builder
-
 type Builder struct {
 	// 使用的db
 	db *MySQl
@@ -25,6 +23,8 @@ type Builder struct {
 
 	bindings []interface{}
 
+	joins []string
+
 	// 分组
 	groups []string
 
@@ -34,9 +34,9 @@ type Builder struct {
 	// 分组
 	orders []string
 
-	limit int
+	limit string
 
-	offset int
+	offset string
 }
 
 func NewBuilder(db *MySQl, model interface{}) *Builder {
@@ -76,6 +76,18 @@ func (b *Builder) Where(column interface{}, args ...interface{}) *Builder {
 	return b.toWhere("AND", column, args...)
 }
 
+func (b *Builder) Join(table, on string, args ...interface{}) *Builder {
+	return b.toJoin("JOIN", table, on, args...)
+}
+
+func (b *Builder) LeftJoin(table, on string, args ...interface{}) *Builder {
+	return b.toJoin("LEFT JOIN", table, on, args...)
+}
+
+func (b *Builder) RightJoin(table, on string, args ...interface{}) *Builder {
+	return b.toJoin("RIGHT JOIN", table, on, args...)
+}
+
 func (b *Builder) OrderBy(column, direction string) *Builder {
 	b.orders = append(b.orders, fmt.Sprintf("%s %s", b.warp(column), strings.ToUpper(direction)))
 	return b
@@ -92,8 +104,24 @@ func (b *Builder) Having(having string, args ...interface{}) *Builder {
 	return b
 }
 
+func (b *Builder) Limit(limit ...int) *Builder {
+	switch len(limit) {
+	case 1:
+		b.limit = fmt.Sprintf(" LIMIT %s", strconv.Itoa(limit[0]))
+	case 2:
+		b.limit = fmt.Sprintf(" LIMIT %s, %s", strconv.Itoa(limit[0]), strconv.Itoa(limit[1]))
+	}
+
+	return b
+}
+
+func (b *Builder) Offset(offset int) *Builder {
+	b.offset = fmt.Sprintf(" OFFSET %s", strconv.Itoa(offset))
+	return b
+}
+
 func (b *Builder) One() error {
-	b.limit = 1
+	b.limit = " LIMIT 1"
 	return b.db.Get(b.data, fmt.Sprintf("%s", b), b.bindings...)
 }
 
@@ -113,14 +141,16 @@ func (b *Builder) Delete() (int64, error) {
 
 func (b *Builder) String() string {
 	return fmt.Sprintf(
-		"SELECT %s FROM %s%s%s%s%s%s",
+		"SELECT %s FROM %s%s%s%s%s%s%s%s",
 		b.columnsFormat(),
 		b.warp(b.from),
+		strings.Join(b.joins, ""),
 		b.whereFormat(true),
 		b.groupByFormat(),
 		b.havingFormat(),
 		b.orderByFormat(),
-		b.limitFormat(),
+		b.limit,
+		b.offset,
 	)
 }
 
@@ -179,23 +209,16 @@ func (b *Builder) orderByFormat() string {
 	return fmt.Sprintf(" ORDER BY %s", strings.Join(b.orders, ", "))
 }
 
-func (b *Builder) limitFormat() string {
-	if b.limit == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf(" LIMIT %s", strconv.Itoa(b.limit))
+func (b *Builder) toJoin(join, table, on string, args ...interface{}) *Builder {
+	b.joins = append(b.joins, fmt.Sprintf(" %s %s ON (%s)", join, b.warp(table), on))
+	b.bindings = append(b.bindings, args...)
+	return b
 }
 
 func (b *Builder) toWhere(boolean string, column interface{}, args ...interface{}) *Builder {
 
 	// 函数执行
 	if fn, ok := column.(func(builder *Builder) *Builder); ok {
-		builder := fn(&Builder{})
-		b.wheres = append(b.wheres, fmt.Sprintf("%s (%s)", boolean, builder.whereFormat(false)))
-		b.bindings = append(b.bindings, builder.bindings...)
-		return b
-	} else if fn, ok := column.(BuilderFn); ok {
 		builder := fn(&Builder{})
 		b.wheres = append(b.wheres, fmt.Sprintf("%s (%s)", boolean, builder.whereFormat(false)))
 		b.bindings = append(b.bindings, builder.bindings...)

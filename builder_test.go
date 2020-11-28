@@ -108,14 +108,12 @@ func TestBuilder_Delete(t *testing.T) {
 func TestBuilder_Update(t *testing.T) {
 	mySQL := NewTestMySQL(t, examplePathName, userPathName)
 
-	var fn BuilderFn = func(builder *Builder) *Builder {
-		return builder.Where("created_at", "<=", DateTime()).
-			Where("status", "in", 1, 2)
-	}
-
 	num, err := mySQL.Builder(&User{Status: 2}).
 		Where("status", 1).
-		Where(fn).
+		Where(func(builder *Builder) *Builder {
+			return builder.Where("created_at", "<=", DateTime()).
+				Where("status", "in", 1, 2)
+		}).
 		Update()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(3), num)
@@ -129,6 +127,12 @@ func TestBuilder_OrderBy(t *testing.T) {
 		Having("username = ? AND `username` = ?", 1, 2).
 		String()
 	assert.Equal(t, "SELECT * FROM `user` GROUP BY `user_id`, `username` HAVING username = ? AND `username` = ? ORDER BY `username` DESC, `user_id` DESC", s)
+}
+
+func TestBuilder_Limit(t *testing.T) {
+	s := NewBuilder(&MySQl{}, &User{}).Offset(0).Limit(1)
+	fmt.Printf("%s \n", s)
+	assert.Equal(t, "SELECT * FROM `user` LIMIT 1 OFFSET 0", s.String())
 }
 
 func TestBuilder_warp(t *testing.T) {
@@ -170,4 +174,23 @@ func TestBuilder_warp(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuilder_Join(t *testing.T) {
+	s := NewBuilder(&MySQl{}, &User{}).
+		Join("user as u", "u.user_id = user.user_id").
+		LeftJoin("user as l", "l.user_id = user.user_id").
+		RightJoin("user as r", "r.user_id = user.user_id").
+		Limit(0, 10).
+		String()
+	fmt.Printf("%s \n", s)
+	assert.Equal(t, "SELECT * FROM `user` JOIN `user` AS `u` ON (u.user_id = user.user_id) LEFT JOIN `user` AS `l` ON (l.user_id = user.user_id) RIGHT JOIN `user` AS `r` ON (r.user_id = user.user_id) LIMIT 0, 10", s)
+}
+
+func TestBuilder_Where2(t *testing.T) {
+	s := NewBuilder(&MySQl{}, &User{}).Where("user.username", 1).
+		OrWhere("user.password", "test-123456").
+		String()
+	fmt.Printf("%s \n", s)
+	assert.Equal(t, "SELECT * FROM `user` WHERE `user`.`username` = ? OR `user`.`password` = ?", s)
 }
