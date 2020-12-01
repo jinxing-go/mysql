@@ -108,7 +108,7 @@ func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
 	name := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s", database)
 	fmt.Println("- ✅ " + name)
 	mySQL.Exec(name)
-	mySQL.DB.Close()
+	mySQL.Close()
 
 	mySQL = NewMySQL(&Config{
 		Dsn:         getDsn(database),
@@ -118,11 +118,11 @@ func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
 	})
 
 	t.Cleanup(func() {
-		mySQL.ShowSql = false
+		mySQL.ShowSql(false)
 		dropName := fmt.Sprintf("DROP DATABASE IF EXISTS %s", database)
 		fmt.Println("- ✅ " + dropName)
 		mySQL.Exec(dropName)
-		mySQL.DB.Close()
+		mySQL.Close()
 	})
 
 	// 读取数据库表结构文件
@@ -148,7 +148,7 @@ func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
 		}
 	}
 
-	mySQL.ShowSql = true
+	mySQL.ShowSql(true)
 	return mySQL
 }
 

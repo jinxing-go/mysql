@@ -30,6 +30,43 @@ func TestNewMySQL(t *testing.T) {
 	})
 }
 
+func TestMySQl_Transaction(t *testing.T) {
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+	err := mySQL.Transaction(func(m *MySQl) error {
+		// 第一条：删除成功
+		if _, err := m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 1); err != nil {
+			return err
+		}
+
+		// 第二条：删除失败
+		_, err := m.Exec("DELETE FROM `user` WHERE `name` = ?", "456")
+		return err
+	})
+
+	assert.Error(t, err)
+	user := make([]*User, 0)
+	err1 := mySQL.FindAll(&user, "`status` = ?", 1)
+	assert.NoError(t, err1)
+	assert.Equal(t, 3, len(user))
+
+	err2 := mySQL.Transaction(func(m *MySQl) error {
+		// 第一条：删除成功
+		if _, err := m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 1); err != nil {
+			return err
+		}
+
+		// 第二条：删除失败
+		_, err := m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 2)
+		return err
+	})
+
+	assert.NoError(t, err2)
+	user1 := make([]*User, 0)
+	err3 := mySQL.FindAll(&user1, "`status` = ?", 1)
+	assert.NoError(t, err3)
+	assert.Equal(t, 1, len(user1))
+}
+
 func TestMySQl_Find(t *testing.T) {
 	mySQL := NewTestMySQL(t, examplePathName, userPathName)
 	// 执行正常
@@ -128,4 +165,52 @@ func TestMySQl_FindAll(t *testing.T) {
 func TestMySQl_Builder(t *testing.T) {
 	my := &MySQl{}
 	assert.Equal(t, my.Builder(nil), &Builder{db: my, data: nil})
+}
+
+func TestMySQl_Close(t *testing.T) {
+	my := &MySQl{}
+	err := my.Close()
+	assert.NoError(t, err)
+}
+
+func TestMySQl_Logger(t *testing.T) {
+	my := &MySQl{}
+	my.Logger(&DefaultLogger{})
+	assert.Equal(t, my.log, &DefaultLogger{})
+}
+
+func TestMySQl_Begin(t *testing.T) {
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+	m, _ := mySQL.Begin()
+
+	// 第一条：删除成功
+	m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 1)
+
+	// 第二条：删除失败
+	m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 2)
+	err := m.Commit()
+
+	assert.NoError(t, err)
+	user := make([]*User, 0)
+	err1 := mySQL.FindAll(&user, "`status` = ?", 1)
+	assert.NoError(t, err1)
+	assert.Equal(t, 1, len(user))
+}
+
+func TestMySQl_Rollback(t *testing.T) {
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+	m, _ := mySQL.Begin()
+
+	// 第一条：删除成功
+	m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 1)
+
+	// 第二条：删除失败
+	m.Exec("DELETE FROM `user` WHERE `user_id` = ?", 2)
+	err := m.Rollback()
+
+	assert.NoError(t, err)
+	user := make([]*User, 0)
+	err1 := mySQL.FindAll(&user, "`status` = ?", 1)
+	assert.NoError(t, err1)
+	assert.Equal(t, 3, len(user))
 }

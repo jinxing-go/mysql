@@ -10,10 +10,22 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
+type IDBSqlx interface {
+	Queryx(query string, args ...interface{}) (*sqlx.Rows, error)
+	QueryRowx(query string, args ...interface{}) *sqlx.Row
+	Get(dest interface{}, query string, args ...interface{}) error
+	Select(dest interface{}, query string, args ...interface{}) error
+	Exec(query string, args ...interface{}) (sql.Result, error)
+	Preparex(query string) (*sqlx.Stmt, error)
+	Rebind(query string) string
+	DriverName() string
+}
+
 type MySQl struct {
-	DB      *sqlx.DB
-	ShowSql bool
-	Logger  Logger
+	db      *sqlx.DB
+	tx      *sqlx.Tx
+	showSql bool
+	log     Logger
 }
 
 type Config struct {
@@ -48,12 +60,54 @@ func NewMySQL(configValue *Config) *MySQl {
 	}
 
 	return &MySQl{
-		DB:      db,
-		ShowSql: configValue.ShowSql,
-		Logger:  &DefaultLogger{},
+		db:      db,
+		showSql: configValue.ShowSql,
+		log:     &DefaultLogger{},
 	}
 }
 
+func (m *MySQl) DB() IDBSqlx {
+	if m.tx != nil {
+		return m.tx.Unsafe()
+	}
+
+	return m.db.Unsafe()
+}
+
+// Transaction 事务处理
+func (m *MySQl) Transaction(funName func(mysql *MySQl) error) error {
+	tx, err := m.db.Beginx()
+	if err != nil {
+		return err
+	}
+
+	if err := funName(&MySQl{tx: tx, showSql: m.showSql, log: m.log}); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// 开启事务
+func (m *MySQl) Begin() (*MySQl, error) {
+	tx, err := m.db.Beginx()
+	if err != nil {
+		return nil, err
+	}
+
+	return &MySQl{tx: tx, showSql: m.showSql, log: m.log}, nil
+}
+
+func (m *MySQl) Commit() error {
+	return m.tx.Commit()
+}
+
+func (m *MySQl) Rollback() error {
+	return m.tx.Rollback()
+}
+
+// Get 查询一条数据
 func (m *MySQl) Get(data interface{}, query string, args ...interface{}) (err error) {
 
 	var (
@@ -77,9 +131,10 @@ func (m *MySQl) Get(data interface{}, query string, args ...interface{}) (err er
 		})
 	}(time.Now())
 
-	return m.DB.Get(data, queryString, bindings...)
+	return m.DB().Get(data, queryString, bindings...)
 }
 
+// Select 查询多条数据
 func (m *MySQl) Select(data interface{}, query string, args ...interface{}) (err error) {
 	var (
 		queryString string
@@ -102,20 +157,22 @@ func (m *MySQl) Select(data interface{}, query string, args ...interface{}) (err
 		})
 	}(time.Now())
 
-	return m.DB.Select(data, queryString, bindings...)
+	return m.DB().Select(data, queryString, bindings...)
 }
 
+// Builder 获取查询对象
 func (m *MySQl) Builder(data interface{}) *Builder {
 	return NewBuilder(m, data)
 }
 
-// Find 查询数据
+// Find 查询一条数据
 func (m *MySQl) Find(model Model, zeroColumn ...string) (err error) {
 	where, args := ToQueryWhere(model, nil, zeroColumn)
 	query := fmt.Sprintf("SELECT * FROM `%s` WHERE %s LIMIT 1", model.TableName(), strings.Join(where, " AND "))
 	return m.Get(model, query, args...)
 }
 
+// FindAll 查询多条数据
 func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) error {
 	model, err := GetModel(models)
 	if err != nil {
@@ -129,7 +186,7 @@ func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) e
 	return m.Select(models, fmt.Sprintf("SELECT * FROM `%s` %s", model.TableName(), where), args...)
 }
 
-// 创建数据
+// Create 创建数据
 func (m *MySQl) Create(model Model) (err error) {
 	pk := model.PK()
 	SetCreateAutoTimestamps(model)
@@ -164,7 +221,7 @@ func (m *MySQl) Create(model Model) (err error) {
 
 	// 执行SQL
 	var result sql.Result
-	result, err = m.DB.Exec(query, bindValue...)
+	result, err = m.DB().Exec(query, bindValue...)
 	if err != nil {
 		return err
 	}
@@ -219,7 +276,7 @@ func (m *MySQl) Exec(query string, args ...interface{}) (i int64, err error) {
 	}(time.Now())
 
 	var result sql.Result
-	result, err = m.DB.Exec(queryString, bindings...)
+	result, err = m.DB().Exec(queryString, bindings...)
 	if err != nil {
 		return 0, err
 	}
@@ -227,8 +284,26 @@ func (m *MySQl) Exec(query string, args ...interface{}) (i int64, err error) {
 	return result.RowsAffected()
 }
 
+func (m *MySQl) ShowSql(isShow bool) *MySQl {
+	m.showSql = isShow
+	return m
+}
+
+func (m *MySQl) Logger(log Logger) *MySQl {
+	m.log = log
+	return m
+}
+
+func (m *MySQl) Close() error {
+	if m.db != nil {
+		return m.db.Close()
+	}
+
+	return nil
+}
+
 func (m *MySQl) logger(params *QueryParams) {
-	if m.ShowSql && m.Logger != nil {
-		m.Logger.Logger(params)
+	if m.showSql && m.log != nil {
+		m.log.Logger(params)
 	}
 }
