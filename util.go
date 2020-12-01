@@ -132,7 +132,11 @@ func NewTestMySQL(t *testing.T, schema string, fixtures ...string) *MySQl {
 		panic(err)
 	}
 
-	mySQL.Exec(string(str))
+	// 使用; 分割语句
+	queryList := strings.Split(string(str), ";")
+	for _, query := range queryList {
+		mySQL.Exec(query)
+	}
 
 	for _, filename := range fixtures {
 		if filename != "" {
