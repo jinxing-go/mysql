@@ -7,6 +7,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestBuilder_Paginate(t *testing.T) {
+	mySQL := NewTestMySQL(t, examplePathName, userPathName)
+	user := make([]*User, 0)
+
+	// 查下正常
+	total, err := NewBuilder(mySQL, &user).Where("status", "in", 1, 2).Paginate(1, 10)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(3), total)
+
+	// 查询失败
+	_, err1 := NewBuilder(mySQL, &user).Where("status1", 1).Paginate(1, 10)
+	assert.Error(t, err1)
+
+	_, err2 := NewBuilder(mySQL, &user).
+		Where("status", 1).
+		OrderBy("status1", "asc").
+		Paginate(1, 10)
+	assert.Error(t, err2)
+
+	user = make([]*User, 0)
+	t1, err3 := NewBuilder(mySQL, &user).
+		Where("status", 1).
+		OrderBy("user_id", "desc").
+		Paginate(2, 10)
+	assert.Equal(t, int64(3), t1)
+	assert.NoError(t, err3)
+	assert.Equal(t, 0, len(user))
+
+	t.Run("测试分页复数", func(t *testing.T) {
+		t1, _ := NewBuilder(mySQL, &user).
+			Where("status", 1).
+			OrderBy("user_id", "desc").
+			Paginate(-1, 10)
+		assert.Equal(t, int64(3), t1)
+	})
+}
+
 func TestBuilder_All(t *testing.T) {
 	mySQL := NewTestMySQL(t, examplePathName, userPathName)
 	user := make([]*User, 0)

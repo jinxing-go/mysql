@@ -129,6 +129,40 @@ func (b *Builder) All() error {
 	return b.db.Select(b.data, b.String(), b.bindings...)
 }
 
+func (b *Builder) Paginate(page, size int) (int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+
+	offset := (page - 1) * size
+	b.Offset(offset)
+	b.Limit(size)
+
+	// 查询总数
+	sql := fmt.Sprintf(
+		"SELECT COUNT(*) AS `total` FROM %s%s%s%s%s",
+		b.warp(b.from),
+		strings.Join(b.joins, ""),
+		b.whereFormat(true),
+		b.groupByFormat(),
+		b.havingFormat(),
+	)
+
+	var total int64
+	if err := b.db.Get(&total, sql, b.bindings...); err != nil {
+		return 0, err
+	}
+
+	// 查询数量大于0，才去查询具体数据
+	if total > 0 {
+		if err := b.All(); err != nil {
+			return 0, err
+		}
+	}
+
+	return total, nil
+}
+
 func (b *Builder) Update(zeroColumn ...string) (int64, error) {
 	setColumns, args := ToQueryWhere(b.data, nil, zeroColumn)
 	args = append(args, b.bindings...)
