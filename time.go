@@ -54,11 +54,11 @@ func (t Time) Value() (driver.Value, error) {
 		return nil, nil
 	}
 
-	return []byte(time.Time(t).Format(DateTimeLayout)), nil
+	return []byte(s), nil
 }
 
 func (t *Time) Scan(v interface{}) error {
-	tTime, _ := time.ParseInLocation("2006-01-02 15:04:05", v.(time.Time).String(), loc)
+	tTime, _ := time.ParseInLocation("2006-01-02 15:04:05", v.(time.Time).Format(DateTimeLayout), loc)
 	*t = Time(tTime)
 	return nil
 }
