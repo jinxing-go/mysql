@@ -152,5 +152,4 @@ func GetModel(model interface{}) (Model, error) {
 	}
 
 	return nil, errors.New(fmt.Sprintf("%#v need to implement Model", model))
-
 }

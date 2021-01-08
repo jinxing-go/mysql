@@ -58,7 +58,7 @@ func (t Time) Value() (driver.Value, error) {
 }
 
 func (t *Time) Scan(v interface{}) error {
-	tTime, _ := time.Parse("2006-01-02 15:04:05 +0800 CST", v.(time.Time).String())
+	tTime, _ := time.ParseInLocation("2006-01-02 15:04:05", v.(time.Time).String(), loc)
 	*t = Time(tTime)
 	return nil
 }
