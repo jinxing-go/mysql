@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNow(t *testing.T) {
+	assert.Equal(t, DateTime(), Now().String())
+}
+
 func TestDate(t *testing.T) {
 	assert.Equal(t, time.Now().Format(DateLayout), Date())
 }

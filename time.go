@@ -20,6 +20,10 @@ type Time time.Time
 
 var loc, _ = time.LoadLocation(TimeZone)
 
+func Now() Time {
+	return Time(time.Now())
+}
+
 // DateTime 当前日期时间
 func DateTime() string {
 	return time.Now().In(loc).Format(DateTimeLayout)
