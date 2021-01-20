@@ -187,7 +187,7 @@ func (m *MySQl) FindAll(models interface{}, where string, args ...interface{}) e
 }
 
 // Create 创建数据
-func (m *MySQl) Create(model Model) (err error) {
+func (m *MySQl) Create(model Model, zeroColumn ...string) (err error) {
 	pk := model.PK()
 	SetCreateAutoTimestamps(model)
 	columns := StructColumns(model, "db")
@@ -195,7 +195,7 @@ func (m *MySQl) Create(model Model) (err error) {
 	bind := make([]string, 0)
 	bindValue := make([]interface{}, 0)
 	for _, value := range columns {
-		if value.Name != pk && !value.IsZero {
+		if value.Name != pk && (!value.IsZero || InStringSlice(zeroColumn, value.Name)) {
 			fields = append(fields, "`"+value.Name+"`")
 			bind = append(bind, "?")
 			bindValue = append(bindValue, value.Value)
