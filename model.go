@@ -133,7 +133,6 @@ func GetModel(model interface{}) (Model, error) {
 	}
 
 	mValue := reflect.ValueOf(model)
-	fmt.Printf("%#v\n", mValue)
 	if mValue.Kind() != reflect.Ptr {
 		return nil, errors.New(fmt.Sprintf("model argument must pass a pointer, not a value %#v", model))
 	}
