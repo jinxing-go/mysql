@@ -107,9 +107,9 @@ func (b *Builder) Having(having string, args ...interface{}) *Builder {
 func (b *Builder) Limit(limit ...int) *Builder {
 	switch len(limit) {
 	case 1:
-		b.limit = fmt.Sprintf(" LIMIT %s", strconv.Itoa(limit[0]))
+		b.limit = fmt.Sprintf(" LIMIT %d", limit[0])
 	case 2:
-		b.limit = fmt.Sprintf(" LIMIT %s, %s", strconv.Itoa(limit[0]), strconv.Itoa(limit[1]))
+		b.limit = fmt.Sprintf(" LIMIT %d, %d", limit[0], limit[1])
 	}
 
 	return b
